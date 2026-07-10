@@ -25,10 +25,24 @@ if not defined QT_DIR (
 )
 
 if not defined MINGW_DIR (
+    if defined IQTA_TOOLS (
+        if exist "%IQTA_TOOLS%\mingw1310_64\bin\g++.exe" (
+            set "MINGW_DIR=%IQTA_TOOLS%\mingw1310_64"
+        )
+    )
+)
+if not defined MINGW_DIR (
     if exist "D:\Qt\Tools\mingw1310_64\bin\g++.exe" (
         set "MINGW_DIR=D:\Qt\Tools\mingw1310_64"
     ) else if exist "C:\Qt\Tools\mingw1310_64\bin\g++.exe" (
         set "MINGW_DIR=C:\Qt\Tools\mingw1310_64"
+    )
+)
+if not defined MINGW_DIR (
+    if defined QT_DIR (
+        for /d %%D in ("%QT_DIR%\..\..\Tools\mingw*") do (
+            if exist "%%D\bin\g++.exe" set "MINGW_DIR=%%D"
+        )
     )
 )
 
@@ -38,6 +52,11 @@ if not defined CMAKE_DIR (
     ) else if exist "C:\Qt\Tools\CMake_64\bin\cmake.exe" (
         set "CMAKE_DIR=C:\Qt\Tools\CMake_64\bin"
     )
+)
+rem GitHub Actions / system CMake
+if not defined CMAKE_DIR (
+    where cmake >nul 2>&1
+    if not errorlevel 1 set "CMAKE_DIR="
 )
 
 if not defined QT_DIR (

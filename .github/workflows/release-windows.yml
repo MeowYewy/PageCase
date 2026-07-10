@@ -23,6 +23,7 @@ jobs:
           version: '6.11.1'
           arch: 'win64_mingw'
           modules: 'qtquickcontrols2 qtnetwork qtconcurrent'
+          tools: 'tools_mingw1310'
 
       - name: Build Release
         shell: cmd
@@ -36,26 +37,23 @@ jobs:
         shell: cmd
         run: scripts\package-portable.bat
 
-      - name: Package installer
-        shell: cmd
-        run: scripts\package-installer.bat
-        continue-on-error: true
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: pdfstudio-windows-${{ github.ref_name }}
           path: |
-            dist/artifacts/*
+            dist/artifacts/*.zip
             dist/PDFStudio-*-win64/
 
-      - name: Create GitHub Release (tag push only)
+      - name: Attach portable ZIP to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/artifacts/*.zip
-            dist/artifacts/*-Setup.exe
-          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          files: dist/artifacts/*.zip
+          allow_updates: true
+          overwrite_files: true
+          fail_on_unmatched_files: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
