@@ -43,7 +43,7 @@ jobs:
           name: pdfstudio-windows-${{ github.ref_name }}
           path: |
             dist/artifacts/*.zip
-            dist/PDFStudio-*-win64/
+            dist/PDF_Studio_*_win64/
 
       - name: Attach portable ZIP to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

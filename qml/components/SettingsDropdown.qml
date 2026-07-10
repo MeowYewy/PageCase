@@ -176,11 +176,27 @@ Item {
                         anchors.left: updateLabel.right
                         anchors.leftMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: !UpdateChecker.hasUpdate || UpdateChecker.status === 5
+                        visible: UpdateChecker.status === 1
+                                || UpdateChecker.status === 2
+                                || UpdateChecker.status === 4
+                    }
+
+                    Text {
+                        id: downloadProgressText
+                        anchors.left: updateLabel.right
+                        anchors.leftMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: UpdateChecker.status === 5
+                        text: UpdateChecker.downloadProgress + "%"
+                        font.pixelSize: 11
+                        font.family: Theme.mainFont.family
+                        font.weight: Font.Normal
+                        color: Theme.textSecondary
                     }
 
                     Rectangle {
                         id: newVersionPill
+                        z: 2
                         anchors.left: updateLabel.right
                         anchors.leftMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
@@ -200,15 +216,22 @@ Item {
                         }
 
                         MouseArea {
+                            z: 2
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: UpdateChecker.downloadUpdate()
+                            onClicked: function(mouse) {
+                                mouse.accepted = true
+                                UpdateChecker.downloadUpdate()
+                            }
                         }
                     }
 
                     MouseArea {
-                        anchors.fill: parent
-                        anchors.rightMargin: UpdateChecker.hasUpdate ? newVersionPill.width + 16 : 28
+                        z: 1
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: newVersionPill.visible ? newVersionPill.x : parent.width
                         cursorShape: Qt.PointingHandCursor
                         hoverEnabled: true
                         onClicked: UpdateChecker.checkForUpdates()

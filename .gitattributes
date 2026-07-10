@@ -1,0 +1,6 @@
+# Default: normalize text files, store LF in the repository.
+* text=auto eol=lf
+
+# Windows cmd/Inno Setup break on LF-only batch files.
+*.bat text eol=crlf
+*.iss text eol=crlf

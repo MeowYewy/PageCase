@@ -74,7 +74,8 @@ set "PATH=%QT_DIR%\bin;%MINGW_DIR%\bin;%CMAKE_DIR%;%PATH%"
 set "BUILD_DIR=%PROJECT_ROOT%\build\release"
 set "BUILD_EXE=%BUILD_DIR%\ProjectP.exe"
 set "DIST_ROOT=%PROJECT_ROOT%\dist"
-set "DIST_DIR=%DIST_ROOT%\PDFStudio-%APP_VERSION%-win64"
+rem Artifact naming (underscore): PDF_Studio_{version}_win64_Setup.exe / _portable.zip
+set "DIST_DIR=%DIST_ROOT%\PDF_Studio_%APP_VERSION%_win64"
 set "ARTIFACT_DIR=%DIST_ROOT%\artifacts"
 
 endlocal & (

@@ -42,5 +42,5 @@ echo.
 if errorlevel 1 exit /b 1
 
 echo.
-echo Installer OK: %ARTIFACT_DIR%\PDFStudio-%APP_VERSION%-win64-Setup.exe
+echo Installer OK: %ARTIFACT_DIR%\PDF_Studio_%APP_VERSION%_win64_Setup.exe
 endlocal

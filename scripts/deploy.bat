@@ -10,7 +10,7 @@ if not exist "%BUILD_EXE%" (
 )
 
 echo.
-echo === Deploy PDF Studio v%ADP_VERSION% ===
+echo === Deploy PDF Studio v%APP_VERSION% ===
 echo Staging: %DIST_DIR%
 echo.
 

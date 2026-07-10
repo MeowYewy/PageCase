@@ -7,8 +7,8 @@ Rectangle {
     visible: opacity > 0
     opacity: 0
     radius: Theme.radiusMd
-    color: ok ? Theme.surface : Theme.surfaceAlt
-    border.color: ok ? Theme.border : Theme.danger
+    color: Theme.surfaceAlt
+    border.color: ok ? Theme.success : Theme.danger
     border.width: 1
     width: Math.min(360, Math.max(160, label.implicitWidth + 32))
     height: 44
@@ -26,7 +26,7 @@ Rectangle {
         id: label
         anchors.centerIn: parent
         font: Theme.mainFont
-        color: toast.ok ? Theme.text : Theme.danger
+        color: toast.ok ? Theme.success : Theme.danger
     }
 
     SequentialAnimation {

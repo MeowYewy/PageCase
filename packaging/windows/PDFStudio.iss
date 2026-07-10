@@ -1,13 +1,13 @@
 ; PDF Studio — Windows installer (Inno Setup 6)
 ; Build: scripts\package-installer.bat
-; Or: ISCC /DAppVersion=0.1.0 /DSourceDir=dist\PDFStudio-0.1.0-win64 /DOutputDir=dist\artifacts packaging\windows\PDFStudio.iss
+; Or: ISCC /DAppVersion=0.1.0 /DSourceDir=dist\PDF_Studio_0.1.0_win64 /DOutputDir=dist\artifacts packaging\windows\PDFStudio.iss
 
 #ifndef AppVersion
   #define AppVersion "0.1.0"
 #endif
 
 #ifndef SourceDir
-  #define SourceDir "..\..\dist\PDFStudio-" + AppVersion + "-win64"
+  #define SourceDir "..\..\dist\PDF_Studio_" + AppVersion + "_win64"
 #endif
 
 #ifndef OutputDir
@@ -30,7 +30,7 @@ DefaultDirName={autopf}\PDF Studio
 DefaultGroupName=PDF Studio
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=PDFStudio-{#AppVersion}-win64-Setup
+OutputBaseFilename=PDF_Studio_{#AppVersion}_win64_Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern

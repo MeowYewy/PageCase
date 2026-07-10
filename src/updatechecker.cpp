@@ -286,8 +286,11 @@ void UpdateChecker::downloadUpdate()
             QProcess::splitCommand(argsLine);
 
         if (!QProcess::startDetached(destPath, args)) {
-            setStatus(CheckFailed);
-            return;
+            // Fallback: open installer normally if silent launch fails
+            if (!QProcess::startDetached(destPath, QStringList())) {
+                setStatus(CheckFailed);
+                return;
+            }
         }
 
         setStatus(UpdateAvailable);
