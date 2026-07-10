@@ -1,0 +1,89 @@
+#pragma once
+
+#include <QVariantList>
+
+#include "appsettings.h"
+#include "filelistmodel.h"
+#include "pdfengine.h"
+#include "pdfpreviewmodel.h"
+
+class PreviewImageProvider;
+
+class AppController : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(FileListModel *files READ files CONSTANT)
+    Q_PROPERTY(PdfPreviewModel *preview READ preview CONSTANT)
+    Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(int currentTab READ currentTab WRITE setCurrentTab NOTIFY currentTabChanged)
+    Q_PROPERTY(int fileCount READ fileCount NOTIFY fileCountChanged)
+    Q_PROPERTY(QStringList filePaths READ filePaths NOTIFY fileCountChanged)
+    Q_PROPERTY(QVariantList previewPages READ previewPages NOTIFY previewChanged)
+    Q_PROPERTY(QString currentFileName READ currentFileName NOTIFY previewChanged)
+    Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
+    Q_PROPERTY(double progress READ progress NOTIFY progressChanged)
+    Q_PROPERTY(bool processing READ processing NOTIFY processingChanged)
+
+public:
+    explicit AppController(PreviewImageProvider *imageProvider = nullptr,
+                           AppSettings *settings = nullptr,
+                           QObject *parent = nullptr);
+
+    FileListModel *files() { return &m_files; }
+    PdfPreviewModel *preview() { return &m_preview; }
+    QString statusMessage() const { return m_status; }
+    bool busy() const { return m_busy; }
+    int currentTab() const { return m_currentTab; }
+    int fileCount() const { return m_files.count(); }
+    QStringList filePaths() const { return m_files.paths(); }
+    QVariantList previewPages() const;
+    QString currentFileName() const;
+    bool previewLoading() const { return m_preview.isLoading(); }
+    double progress() const { return m_progress; }
+    bool processing() const { return m_busy; }
+
+    Q_INVOKABLE void setCurrentTab(int tab);
+    Q_INVOKABLE void addFiles(const QStringList &paths);
+    Q_INVOKABLE void addFilesFromList(const QVariantList &paths);
+    Q_INVOKABLE void browseAndAddFiles();
+    Q_INVOKABLE void clearFiles();
+    Q_INVOKABLE void removeFileAt(int index);
+    Q_INVOKABLE void selectPreviewFile(const QString &path);
+    Q_INVOKABLE void moveFile(int from, int to);
+    Q_INVOKABLE void ensurePreviewPagesLoaded(int startPage, int endPage);
+    Q_INVOKABLE QString filePathAt(int index) const;
+    Q_INVOKABLE QString browseOutputFile(const QString &suggested, const QString &filter = {});
+    Q_INVOKABLE QString browseOutputDir();
+    Q_INVOKABLE void runCurrentAction(int optionValue = 90, const QString &extraText = {});
+    Q_INVOKABLE QVariantList watermarkLayoutItems(const QString &text, int count,
+                                                  qreal pageWidth, qreal pageHeight) const;
+
+signals:
+    void statusMessageChanged();
+    void busyChanged();
+    void currentTabChanged();
+    void fileCountChanged();
+    void previewChanged();
+    void progressChanged();
+    void processingChanged();
+    void requestFileDialog(const QString &mode, const QString &filter);
+    void actionFinished(bool ok, const QString &message);
+
+private:
+    void setStatus(const QString &msg);
+    void setBusy(bool busy);
+    void setProgress(double value);
+    void notifyPreviewChanged();
+    QString defaultDialogDir() const;
+    void rememberOutput(const QString &path);
+
+    FileListModel m_files;
+    PdfPreviewModel m_preview;
+    PdfEngine m_engine;
+    AppSettings *m_settings = nullptr;
+    QString m_status;
+    bool m_busy = false;
+    double m_progress = 0.0;
+    int m_currentTab = 0;
+};

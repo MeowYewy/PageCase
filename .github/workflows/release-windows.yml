@@ -1,0 +1,61 @@
+name: Release Windows (PDF Studio for Windows)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt 6.11.1 MinGW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.1'
+          arch: 'win64_mingw'
+          modules: 'qtquickcontrols2 qtnetwork qtconcurrent'
+
+      - name: Build Release
+        shell: cmd
+        run: scripts\build-release.bat
+
+      - name: Deploy (windeployqt + tools)
+        shell: cmd
+        run: scripts\deploy.bat
+
+      - name: Package portable ZIP
+        shell: cmd
+        run: scripts\package-portable.bat
+
+      - name: Package installer
+        shell: cmd
+        run: scripts\package-installer.bat
+        continue-on-error: true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfstudio-windows-${{ github.ref_name }}
+          path: |
+            dist/artifacts/*
+            dist/PDFStudio-*-win64/
+
+      - name: Create GitHub Release (tag push only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/artifacts/*.zip
+            dist/artifacts/*-Setup.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

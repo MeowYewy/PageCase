@@ -1,0 +1,16 @@
+# Build outputs
+build/
+dist/
+.qtcreator/
+*.user
+*.autosave
+
+# Tool download temp
+tools/qpdf-download.zip
+tools/qpdf-extract/
+tools/poppler-temp/
+
+# OS / IDE
+Thumbs.db
+*.log
+build_log.txt

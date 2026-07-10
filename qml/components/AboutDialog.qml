@@ -1,0 +1,159 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import ProjectP
+
+Item {
+    id: root
+    visible: false
+    z: 3000
+
+    function open() { root.visible = true; root.forceActiveFocus() }
+    function close() { root.visible = false }
+    signal changelogRequested()
+
+    Keys.onEscapePressed: root.close()
+    Keys.onReleased: function(event) {
+        if (event.key === Qt.Key_Escape)
+            root.close()
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.dimOverlay
+        opacity: Theme.dimOpacity
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.close()
+        }
+    }
+
+    Item {
+        id: dialogLayer
+        anchors.centerIn: parent
+        width: card.width
+        height: card.height
+
+        Rectangle {
+            id: shadow2
+            anchors.fill: card
+            anchors.topMargin: Theme.shadowOffset2
+            radius: card.radius
+            color: Theme.shadowColor
+            opacity: Theme.shadowOpacity2
+        }
+
+        Rectangle {
+            id: shadow1
+            anchors.fill: card
+            anchors.topMargin: Theme.shadowOffset1
+            radius: card.radius
+            color: Theme.shadowColor
+            opacity: Theme.shadowOpacity1
+        }
+
+        Rectangle {
+            id: card
+            width: 360
+            height: body.height + 64
+            radius: Theme.radiusLg
+            color: Theme.surface
+            border.color: Theme.border
+            border.width: 1
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {}
+            }
+
+            Column {
+                id: body
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 32
+                spacing: 16
+                width: 300
+
+                AppLogo {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    logoSize: 64
+                    cornerRadius: 16
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: Theme.tr("appName")
+                    font: Theme.titleFont
+                    color: Theme.text
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    text: Theme.tr("aboutTagline")
+                    font: Theme.captionFont
+                    color: Theme.textSecondary
+                }
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.width
+                    height: 1
+                    color: Theme.border
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: Theme.tr("version") + "  " + AppSettings.appVersion
+                    color: Theme.text
+                    font: Theme.mainFont
+                }
+
+                Column {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 4
+                    width: parent.width
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: Theme.tr("aboutAuthor")
+                        color: Theme.text
+                        font: Theme.mainFont
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: Theme.tr("aboutCopyright")
+                        color: Theme.textSecondary
+                        font: Theme.captionFont
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+
+                Item { width: 1; height: 8 }
+
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 12
+
+                    StyledButton {
+                        width: 120
+                        text: Theme.tr("changelog")
+                        onClicked: root.changelogRequested()
+                    }
+
+                    StyledButton {
+                        width: 120
+                        text: Theme.tr("close")
+                        highlighted: true
+                        onClicked: root.close()
+                    }
+                }
+            }
+        }
+    }
+}
