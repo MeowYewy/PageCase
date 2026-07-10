@@ -19,7 +19,7 @@
 namespace {
 
 constexpr auto kUpdateManifestUrl =
-    "https://raw.githubusercontent.com/MeowYewy/PDF-Studio-for-Windows/main/resources/update.json";
+    "https://raw.githubusercontent.com/MeowYewy/PDF_Studio/main/resources/update.json";
 
 constexpr auto kDefaultSilentInstallArgs =
     "/VERYSILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS";

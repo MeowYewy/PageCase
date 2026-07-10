@@ -26,7 +26,7 @@ desktop-qt/
 ## 一键发布（本地）
 
 ```bat
-cd /d D:\path\to\PDF-Studio-for-Windows
+cd /d D:\path\to\PDF_Studio
 scripts\release.bat
 ```
 

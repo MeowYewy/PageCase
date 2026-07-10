@@ -23,4 +23,4 @@ Included tools (bundled)
 License: MIT — see LICENSE.txt and third-party-LICENSES.txt
 
 Author: MeowYewy
-https://github.com/MeowYewy/PDF-Studio-for-Windows
+https://github.com/MeowYewy/PDF_Studio

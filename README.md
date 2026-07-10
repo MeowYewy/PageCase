@@ -51,8 +51,8 @@
 
 | 文件 | 说明 |
 |------|------|
-| [PDFStudio-0.1.0-win64-Setup.exe](https://github.com/MeowYewy/PDF-Studio-for-Windows/releases/download/v0.1.0/PDFStudio-0.1.0-win64-Setup.exe) | 安装版（首次安装有向导界面） |
-| [PDFStudio-0.1.0-win64-portable.zip](https://github.com/MeowYewy/PDF-Studio-for-Windows/releases/download/v0.1.0/PDFStudio-0.1.0-win64-portable.zip) | 便携版（解压即用） |
+| [PDFStudio-0.1.0-win64-Setup.exe](https://github.com/MeowYewy/PDF_Studio/releases/download/v0.1.0/PDFStudio-0.1.0-win64-Setup.exe) | 安装版（首次安装有向导界面） |
+| [PDFStudio-0.1.0-win64-portable.zip](https://github.com/MeowYewy/PDF_Studio/releases/download/v0.1.0/PDFStudio-0.1.0-win64-portable.zip) | 便携版（解压即用） |
 
 **系统要求**
 
@@ -75,7 +75,7 @@
 维护者本地一键打包：
 
 ```bat
-cd /d D:\path\to\PDF-Studio-for-Windows
+cd /d D:\path\to\PDF_Studio
 scripts\release.bat
 ```
 
@@ -120,7 +120,7 @@ run.bat
 ## 项目结构
 
 ```
-PDF-Studio-for-Windows/
+PDF_Studio/
 ├── qml/                  # QML 界面（页面、组件、主题）
 ├── src/                  # C++ 引擎、预览、设置、更新检查
 ├── resources/            # 图标、changelog、update 清单
