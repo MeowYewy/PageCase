@@ -130,6 +130,9 @@ endif()
 
 if(WIN32)
     set_target_properties(ProjectP PROPERTIES WIN32_EXECUTABLE TRUE)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/resources/app-icon.ico")
+        target_sources(ProjectP PRIVATE "${CMAKE_SOURCE_DIR}/resources/app-icon.rc")
+    endif()
 endif()
 
 add_custom_command(TARGET ProjectP POST_BUILD

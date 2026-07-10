@@ -14,6 +14,10 @@
   #define OutputDir "..\..\dist\artifacts"
 #endif
 
+#ifndef AppIconFile
+  #define AppIconFile "..\..\resources\app-icon.ico"
+#endif
+
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=PDF Studio
@@ -33,6 +37,8 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=PDF Studio {#AppVersion}
+SetupIconFile={#AppIconFile}
+UninstallDisplayIcon={#AppIconFile}
 LicenseFile={#SourceDir}\LICENSE.txt
 InfoAfterFile={#SourceDir}\README.txt
 CloseApplications=force
@@ -51,9 +57,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\PDF Studio"; Filename: "{app}\ProjectP.exe"
+Name: "{group}\PDF Studio"; Filename: "{app}\ProjectP.exe"; IconFilename: "{app}\ProjectP.exe"
 Name: "{group}\{cm:UninstallProgram,PDF Studio}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\PDF Studio"; Filename: "{app}\ProjectP.exe"; Tasks: desktopicon
+Name: "{autodesktop}\PDF Studio"; Filename: "{app}\ProjectP.exe"; IconFilename: "{app}\ProjectP.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\ProjectP.exe"; Description: "{cm:LaunchProgram,PDF Studio}"; Flags: nowait postinstall skipifsilent
