@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.2.1",
+    "date": "2026-7-16",
+    "notes": {
+      "zh_CN": "修复了更新残留的问题。",
+      "zh_TW": "修復了更新殘留的問題。",
+      "en": "Fixed leftover install entries after update.",
+      "fr": "Correction des résidus d’installation après mise à jour."
+    }
+  },
+  {
     "version": "0.2.0",
     "date": "2026-7-15",
     "notes": {

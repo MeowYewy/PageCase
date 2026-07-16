@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0",
-  "downloadUrl": "https://github.com/MeowYewy/PageCase/releases/download/v0.2.0/PageCase_0.2.0_win64_Setup.exe",
+  "version": "0.2.1",
+  "downloadUrl": "https://github.com/MeowYewy/PageCase/releases/download/v0.2.1/PageCase_0.2.1_win64_Setup.exe",
   "silentInstallArgs": "/SILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
-  "releaseNotes": "新增风格化文件选择器；优化了更新逻辑。"
+  "releaseNotes": "修复了更新残留的问题。"
 }
