@@ -75,6 +75,7 @@ RowLayout {
             visible: actionBar.showConvertFormat
             Layout.preferredWidth: actionBar.controlWidth
             onFormatValueChanged: actionBar.optionValue = formatPicker.formatValue
+            Component.onCompleted: actionBar.optionValue = formatPicker.formatValue
         }
 
         TextField {

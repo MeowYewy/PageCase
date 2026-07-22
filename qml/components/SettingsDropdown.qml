@@ -185,6 +185,23 @@ import PageCase
                         color: Theme.menuUnselectedText
                     }
 
+                    UpdateNewVersionLabel {
+                        id: newVersionPill
+                        z: 2
+                        anchors.left: updateLabel.right
+                        anchors.leftMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        clickable: true
+                        visible: UpdateChecker.hasUpdate
+                                && UpdateChecker.status !== 1
+                                && UpdateChecker.status !== 2
+                                && UpdateChecker.status !== 4
+                                && UpdateChecker.status !== 5
+                                && UpdateChecker.status !== 6
+                                && UpdateChecker.status !== 7
+                        onClicked: UpdateChecker.downloadUpdate()
+                    }
+
                     UpdateStatusIcon {
                         anchors.left: updateLabel.right
                         anchors.leftMargin: 8
@@ -246,7 +263,10 @@ import PageCase
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        width: installPill.visible ? installPill.x : parent.width
+                        width: (installPill.visible || newVersionPill.visible)
+                               ? Math.max(installPill.visible ? installPill.x : 0,
+                                          newVersionPill.visible ? newVersionPill.x : 0)
+                               : parent.width
                         cursorShape: Qt.PointingHandCursor
                         hoverEnabled: true
                         onClicked: UpdateChecker.checkForUpdates()

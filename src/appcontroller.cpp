@@ -22,6 +22,7 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
+#include <QTemporaryDir>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <functional>
@@ -172,7 +173,13 @@ void AppController::addFilesFromList(const QVariantList &paths)
 
     for (const QVariant &v : paths) {
 
-        const QString s = v.toString();
+        QString s;
+        if (v.canConvert<QUrl>())
+            s = v.toUrl().toLocalFile();
+        else
+            s = v.toString();
+        if (s.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive))
+            s = QUrl(s).toLocalFile();
 
         if (!s.isEmpty())
 
@@ -436,24 +443,20 @@ QVariantList AppController::watermarkLayoutItems(const QString &text, int count,
 
 namespace {
 
-// PDF-only operations accept Word documents too: they are converted to a
-// cached PDF first (same cache the preview uses). Anything else fails with a
-// localized message instead of raw qpdf noise.
-QString resolveToPdf(const QString &path, const QString &needPdfMsg, QString *error)
+QString resolveInput(PdfEngine &engine, const QString &path, QTemporaryDir *tempDir, int *tempSerial,
+                     const QString &needPdfMsg, QString *error)
 {
-    if (QFileInfo(path).suffix().compare(QLatin1String("pdf"), Qt::CaseInsensitive) == 0)
-        return path;
-
-    if (OfficeConverter::isWordDocument(path)) {
-        QString convertError;
-        const QString pdf = OfficeConverter::toPdfCached(path, &convertError);
-        if (pdf.isEmpty() && error)
-            *error = convertError;
+    QString engineError;
+    const QString pdf = engine.resolveToPdfPath(path, tempDir, tempSerial, &engineError);
+    if (!pdf.isEmpty())
         return pdf;
-    }
 
-    if (error)
-        *error = needPdfMsg;
+    if (error) {
+        if (engineError.contains(QStringLiteral("Unsupported format")) || engineError.isEmpty())
+            *error = needPdfMsg;
+        else
+            *error = engineError;
+    }
     return {};
 }
 
@@ -512,8 +515,13 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
         outputPath = outDir;
         task = [this, input, outDir, range, splitBase, splitSep, splitNumStyle, splitLang,
                 needPdfMsg]() {
+            QTemporaryDir tempDir;
+            if (!tempDir.isValid())
+                return QStringLiteral("Cannot create temp directory");
+            int serial = 0;
             QString resolveError;
-            const QString pdf = resolveToPdf(input, needPdfMsg, &resolveError);
+            const QString pdf =
+                resolveInput(m_engine, input, &tempDir, &serial, needPdfMsg, &resolveError);
             if (pdf.isEmpty())
                 return resolveError;
             return m_engine.splitPdf(pdf, outDir, true, range, splitBase, splitSep,
@@ -524,7 +532,7 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
 
     case 1: {
         if (paths.size() < 2) {
-            fail(QStringLiteral("Need at least 2 PDF files"));
+            fail(QStringLiteral("Need at least 2 files"));
             return;
         }
         QStringList ranges;
@@ -542,11 +550,16 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
             return;
         outputPath = out;
         task = [this, paths, out, ranges, needPdfMsg]() -> QString {
+            QTemporaryDir tempDir;
+            if (!tempDir.isValid())
+                return QStringLiteral("Cannot create temp directory");
+            int serial = 0;
             QStringList resolved;
             resolved.reserve(paths.size());
             for (const QString &path : paths) {
                 QString resolveError;
-                const QString pdf = resolveToPdf(path, needPdfMsg, &resolveError);
+                const QString pdf =
+                    resolveInput(m_engine, path, &tempDir, &serial, needPdfMsg, &resolveError);
                 if (pdf.isEmpty())
                     return resolveError;
                 resolved.append(pdf);
@@ -570,8 +583,13 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
         const QString input = paths.first();
         outputPath = out;
         task = [this, input, out, optionValue, range, needPdfMsg]() {
+            QTemporaryDir tempDir;
+            if (!tempDir.isValid())
+                return QStringLiteral("Cannot create temp directory");
+            int serial = 0;
             QString resolveError;
-            const QString pdf = resolveToPdf(input, needPdfMsg, &resolveError);
+            const QString pdf =
+                resolveInput(m_engine, input, &tempDir, &serial, needPdfMsg, &resolveError);
             if (pdf.isEmpty())
                 return resolveError;
             return m_engine.rotatePdf(pdf, out, optionValue, range);
@@ -581,13 +599,25 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
 
     case 3: {
         if (optionValue == 0) {
-            const QString out = browseOutputFile(QStringLiteral("converted.pdf"));
-            if (out.isEmpty())
-                return;
-            outputPath = out;
-            task = [this, paths, out]() {
-                return m_engine.convertToPdf(paths, out);
-            };
+            if (paths.size() == 1) {
+                const QString out = browseOutputFile(
+                    QFileInfo(paths.first()).completeBaseName() + QStringLiteral(".pdf"),
+                    QStringLiteral("PDF (*.pdf)"));
+                if (out.isEmpty())
+                    return;
+                outputPath = out;
+                task = [this, paths, out]() {
+                    return m_engine.convertToPdf(paths, out);
+                };
+            } else {
+                const QString outDir = browseOutputDir({}, QStringLiteral("convert"));
+                if (outDir.isEmpty())
+                    return;
+                outputPath = outDir;
+                task = [this, paths, outDir]() {
+                    return m_engine.convertEachToPdf(paths, outDir);
+                };
+            }
         } else if (optionValue == 3) {
             const QString out = browseOutputFile(
                 QFileInfo(paths.first()).completeBaseName() + QStringLiteral(".docx"));
@@ -601,18 +631,27 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
         } else {
             const QString format = optionValue == 1 ? QStringLiteral("png")
                                                     : QStringLiteral("jpeg");
-            const QString outDir = browseOutputDir();
+            const QString outDir = browseOutputDir({}, QStringLiteral("convert"));
             if (outDir.isEmpty())
                 return;
-            const QString input = paths.first();
-            const QString baseName = QFileInfo(input).completeBaseName();
             outputPath = outDir;
-            task = [this, input, outDir, format, baseName, needPdfMsg]() {
-                QString resolveError;
-                const QString pdf = resolveToPdf(input, needPdfMsg, &resolveError);
-                if (pdf.isEmpty())
-                    return resolveError;
-                return m_engine.exportPdfAsImages(pdf, outDir, format, baseName);
+            task = [this, paths, outDir, format, needPdfMsg]() {
+                for (const QString &path : paths) {
+                    QTemporaryDir tempDir;
+                    if (!tempDir.isValid())
+                        return QStringLiteral("Cannot create temp directory");
+                    int serial = 0;
+                    QString resolveError;
+                    const QString pdf =
+                        resolveInput(m_engine, path, &tempDir, &serial, needPdfMsg, &resolveError);
+                    if (pdf.isEmpty())
+                        return resolveError;
+                    const QString baseName = QFileInfo(path).completeBaseName();
+                    const QString err = m_engine.exportPdfAsImages(pdf, outDir, format, baseName);
+                    if (!err.isEmpty())
+                        return err;
+                }
+                return QString();
             };
         }
         break;
@@ -626,8 +665,13 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
         const QString input = paths.first();
         outputPath = out;
         task = [this, input, out, optionValue, needPdfMsg]() {
+            QTemporaryDir tempDir;
+            if (!tempDir.isValid())
+                return QStringLiteral("Cannot create temp directory");
+            int serial = 0;
             QString resolveError;
-            const QString pdf = resolveToPdf(input, needPdfMsg, &resolveError);
+            const QString pdf =
+                resolveInput(m_engine, input, &tempDir, &serial, needPdfMsg, &resolveError);
             if (pdf.isEmpty())
                 return resolveError;
             return m_engine.compressPdf(pdf, out, optionValue);
@@ -652,8 +696,13 @@ void AppController::runCurrentAction(int optionValue, const QString &extraText,
         if (!wmColor.isValid())
             wmColor = QColor(90, 90, 90);
         task = [this, input, out, text, optionValue, wmColor, needPdfMsg]() {
+            QTemporaryDir tempDir;
+            if (!tempDir.isValid())
+                return QStringLiteral("Cannot create temp directory");
+            int serial = 0;
             QString resolveError;
-            const QString pdf = resolveToPdf(input, needPdfMsg, &resolveError);
+            const QString pdf =
+                resolveInput(m_engine, input, &tempDir, &serial, needPdfMsg, &resolveError);
             if (pdf.isEmpty())
                 return resolveError;
             return m_engine.watermarkPdf(pdf, out, text, optionValue, wmColor);

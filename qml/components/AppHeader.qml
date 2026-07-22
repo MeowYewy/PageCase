@@ -37,26 +37,41 @@ Rectangle {
 
         Item { Layout.fillWidth: true }
 
-        ToolButton {
-            id: menuBtn
-            implicitWidth: 36
-            implicitHeight: 36
-            hoverEnabled: true
-            focusPolicy: Qt.NoFocus
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: menuBtn.hovered ? Theme.menuHover : "transparent"
-            }
-            contentItem: Item {
-                LucideIcon {
-                    anchors.centerIn: parent
-                    width: 18
-                    height: 18
-                    icon: "menu"
-                    color: Theme.text
+        Item {
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            Layout.topMargin: UpdateChecker.hasUpdate ? 4 : 0
+
+            ToolButton {
+                id: menuBtn
+                anchors.fill: parent
+                hoverEnabled: true
+                focusPolicy: Qt.NoFocus
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: menuBtn.hovered ? Theme.menuHover : "transparent"
                 }
+                contentItem: Item {
+                    LucideIcon {
+                        anchors.centerIn: parent
+                        width: 18
+                        height: 18
+                        icon: "menu"
+                        color: Theme.text
+                    }
+                }
+                onClicked: header.menuRequested(menuBtn)
             }
-            onClicked: header.menuRequested(menuBtn)
+
+            UpdateNewVersionLabel {
+                compact: true
+                anchors.left: parent.right
+                anchors.top: parent.top
+                anchors.leftMargin: -9
+                anchors.topMargin: -5
+                visible: UpdateChecker.hasUpdate
+                z: 1
+            }
         }
     }
 }

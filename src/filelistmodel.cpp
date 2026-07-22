@@ -1,7 +1,24 @@
 #include "filelistmodel.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QMimeDatabase>
+#include <QUrl>
+
+namespace {
+
+QString normalizeLocalPath(const QString &path)
+{
+    if (path.isEmpty())
+        return {};
+    QString s = path;
+    if (s.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive))
+        s = QUrl(s).toLocalFile();
+    s = QDir::cleanPath(QDir::fromNativeSeparators(s));
+    return QFileInfo(s).absoluteFilePath();
+}
+
+} // namespace
 
 FileListModel::FileListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -42,7 +59,9 @@ void FileListModel::addFiles(const QStringList &paths)
 {
     QStringList added;
     for (const QString &p : paths) {
-        const QString resolved = QFileInfo(p).absoluteFilePath();
+        const QString resolved = normalizeLocalPath(p);
+        if (resolved.isEmpty())
+            continue;
         if (!m_paths.contains(resolved))
             added.append(resolved);
     }

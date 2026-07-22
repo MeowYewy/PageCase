@@ -8,9 +8,14 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
+#include <QBuffer>
+#include <QImageWriter>
+#include <QImageIOHandler>
+#include <QVector>
 #include <QPdfWriter>
 #include <QPainter>
 #include <QPageLayout>
+#include <QPageSize>
 #include <QColor>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -58,29 +63,245 @@ QString copyPdfToOutput(const QString &src, const QString &outputPath)
     return {};
 }
 
-QString imageToPdf(const QString &input, const QString &outputPath)
+struct LoadedImage {
+    QImage image;
+    QString error;
+};
+
+LoadedImage loadImageFile(const QString &input)
+{
+    LoadedImage result;
+    QImageReader reader(input);
+    reader.setAutoTransform(true);
+
+    if (!reader.canRead()) {
+        result.error = QStringLiteral("Cannot load image: %1").arg(input);
+        return result;
+    }
+
+    result.image = reader.read();
+    if (result.image.isNull())
+        result.error = QStringLiteral("Cannot load image: %1").arg(input);
+    return result;
+}
+
+// Page pixels match the source image; small images are upscaled proportionally.
+QSize outputPixelSize(const QSize &imageSize)
+{
+    if (!imageSize.isValid() || imageSize.isEmpty())
+        return {};
+
+    constexpr int kMinMaxSide = 1200;
+
+    int w = imageSize.width();
+    int h = imageSize.height();
+    const int maxSide = qMax(w, h);
+    if (maxSide > 0 && maxSide < kMinMaxSide) {
+        const qreal scale = qreal(kMinMaxSide) / maxSide;
+        w = qMax(1, int(qRound(w * scale)));
+        h = qMax(1, int(qRound(h * scale)));
+    }
+    return QSize(w, h);
+}
+
+constexpr int kImagePdfDpi = 300;
+constexpr int kJpegEmbedQuality = 95;
+
+QSize orientedImageSize(const QString &input)
 {
     QImageReader reader(input);
     reader.setAutoTransform(true);
-    QImage image = reader.read();
-    if (image.isNull())
+    QSize size = reader.size();
+    if (!size.isValid())
+        return {};
+
+    const auto transform = reader.transformation();
+    if (transform.testFlag(QImageIOHandler::TransformationRotate90)
+        || transform.testFlag(QImageIOHandler::TransformationRotate270)) {
+        size.transpose();
+    }
+    return size;
+}
+
+bool isJpegPath(const QString &path)
+{
+    const QString ext = QFileInfo(path).suffix().toLower();
+    return ext == QLatin1String("jpg") || ext == QLatin1String("jpeg");
+}
+
+bool isRawJpeg(const QByteArray &bytes)
+{
+    return bytes.size() >= 2
+        && uchar(bytes[0]) == 0xFF && uchar(bytes[1]) == 0xD8;
+}
+
+QByteArray readRawFile(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    return file.readAll();
+}
+
+QByteArray encodeJpegImage(const QImage &source, int quality)
+{
+    QImage image = source;
+    if (image.format() != QImage::Format_RGB888
+        && image.format() != QImage::Format_Grayscale8) {
+        image = image.convertToFormat(QImage::Format_RGB888);
+    }
+
+    if (image.hasAlphaChannel()) {
+        QImage flattened(image.size(), QImage::Format_RGB888);
+        flattened.fill(Qt::black);
+        QPainter painter(&flattened);
+        painter.drawImage(0, 0, source);
+        painter.end();
+        image = flattened;
+    }
+
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    if (!buffer.open(QIODevice::WriteOnly))
+        return {};
+
+    QImageWriter writer(&buffer, QByteArray("jpeg"));
+    writer.setQuality(quality);
+    if (!writer.write(image))
+        return {};
+    return bytes;
+}
+
+QString writePdfWithDctImage(const QString &outputPath, const QByteArray &jpeg, int imgW, int imgH)
+{
+    if (!isRawJpeg(jpeg) || imgW <= 0 || imgH <= 0)
+        return QStringLiteral("Invalid JPEG image data");
+
+    const double pageWPt = imgW * 72.0 / kImagePdfDpi;
+    const double pageHPt = imgH * 72.0 / kImagePdfDpi;
+
+    const QByteArray content = QStringLiteral("q\n%1 0 0 %2 0 0 cm\n/Im0 Do\nQ\n")
+                                   .arg(pageWPt, 0, 'f', 2)
+                                   .arg(pageHPt, 0, 'f', 2)
+                                   .toUtf8();
+
+    QByteArray pdf;
+    pdf.reserve(2048 + jpeg.size());
+    pdf.append("%PDF-1.4\n");
+
+    QVector<int> offsets;
+    offsets.reserve(5);
+
+    const auto beginObj = [&](int objectId) {
+        offsets.append(pdf.size());
+        pdf.append(QByteArray::number(objectId));
+        pdf.append(" 0 obj\n");
+    };
+
+    beginObj(1);
+    pdf.append("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+    beginObj(2);
+    pdf.append("<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+    beginObj(3);
+    pdf.append(QStringLiteral("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %1 %2] "
+                              "/Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>\n")
+                   .arg(pageWPt, 0, 'f', 2)
+                   .arg(pageHPt, 0, 'f', 2)
+                   .toUtf8());
+    pdf.append("endobj\n");
+
+    beginObj(4);
+    pdf.append("<< /Length ");
+    pdf.append(QByteArray::number(content.size()));
+    pdf.append(" >>\nstream\n");
+    pdf.append(content);
+    pdf.append("endstream\nendobj\n");
+
+    beginObj(5);
+    pdf.append(QStringLiteral("<< /Type /XObject /Subtype /Image /Width %1 /Height %2 "
+                              "/ColorSpace /DeviceRGB /BitsPerComponent 8 "
+                              "/Filter /DCTDecode /Length %3 >>\nstream\n")
+                   .arg(imgW)
+                   .arg(imgH)
+                   .arg(jpeg.size())
+                   .toUtf8());
+    pdf.append(jpeg);
+    pdf.append("\nendstream\nendobj\n");
+
+    const int xrefPos = pdf.size();
+    pdf.append("xref\n0 6\n0000000000 65535 f \n");
+    for (int offset : offsets) {
+        pdf.append(QStringLiteral("%1 00000 n \n")
+                       .arg(offset, 10, 10, QChar('0'))
+                       .toUtf8());
+    }
+
+    pdf.append("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n");
+    pdf.append(QByteArray::number(xrefPos));
+    pdf.append("\n%%EOF\n");
+
+    QFile out(outputPath);
+    if (!out.open(QIODevice::WriteOnly))
+        return QStringLiteral("Cannot write output");
+    if (out.write(pdf) != pdf.size())
+        return QStringLiteral("Cannot write output");
+    return {};
+}
+
+QString embedProcessedImage(const QImage &image, const QSize &pagePixels, const QString &outputPath)
+{
+    QImage processed = image;
+    if (processed.size() != pagePixels) {
+        processed = processed.scaled(pagePixels, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    const QByteArray jpeg = encodeJpegImage(processed, kJpegEmbedQuality);
+    if (jpeg.isEmpty())
+        return QStringLiteral("Cannot encode image: JPEG export failed");
+
+    return writePdfWithDctImage(outputPath, jpeg, processed.width(), processed.height());
+}
+
+QString imageToPdf(const QString &input, const QString &outputPath)
+{
+    QImageReader probe(input);
+    if (!probe.canRead())
         return QStringLiteral("Cannot load image: %1").arg(input);
+
+    const QSize orientedSize = orientedImageSize(input);
+    if (orientedSize.isEmpty())
+        return QStringLiteral("Cannot load image: %1").arg(input);
+
+    const QSize pagePixels = outputPixelSize(orientedSize);
+    if (pagePixels.isEmpty())
+        return QStringLiteral("Cannot layout image: %1").arg(input);
 
     if (QFile::exists(outputPath) && !QFile::remove(outputPath))
         return QStringLiteral("Cannot overwrite output");
 
-    QPdfWriter writer(outputPath);
-    writer.setPageSize(QPageSize(QPageSize::A4));
-    writer.setResolution(150);
+    QImageReader metaReader(input);
+    metaReader.setAutoTransform(false);
+    const bool needsReencode = metaReader.transformation() != QImageIOHandler::TransformationNone
+        || pagePixels != orientedSize;
 
-    QPainter painter(&writer);
-    if (!painter.isActive())
-        return QStringLiteral("Cannot create PDF for: %1").arg(input);
+    if (isJpegPath(input) && !needsReencode) {
+        const QByteArray jpeg = readRawFile(input);
+        if (jpeg.isEmpty())
+            return QStringLiteral("Cannot read image: %1").arg(input);
 
-    const QRect target(0, 0, writer.width(), writer.height());
-    painter.drawImage(target, image.scaled(target.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    painter.end();
-    return {};
+        const QSize nativeSize = metaReader.size();
+        const QString err = writePdfWithDctImage(outputPath, jpeg, nativeSize.width(), nativeSize.height());
+        if (err.isEmpty())
+            return {};
+    }
+
+    const LoadedImage loaded = loadImageFile(input);
+    if (!loaded.error.isEmpty())
+        return loaded.error;
+
+    return embedProcessedImage(loaded.image, pagePixels, outputPath);
 }
 
 QString textToPdf(const QString &input, const QString &outputPath)
@@ -373,6 +594,45 @@ QList<int> PdfEngine::expandPageRange(const QString &normalizedRange)
     return pages;
 }
 
+QString PdfEngine::resolveToPdfPath(const QString &input, QTemporaryDir *tempDir, int *tempSerial,
+                                    QString *error) const
+{
+    const auto fail = [&](const QString &message) -> QString {
+        if (error)
+            *error = message;
+        return {};
+    };
+
+    if (QFileInfo(input).suffix().compare(QLatin1String("pdf"), Qt::CaseInsensitive) == 0)
+        return input;
+
+    if (OfficeConverter::isWordDocument(input)) {
+        const QString cached = OfficeConverter::toPdfCached(input, error);
+        if (cached.isEmpty())
+            return fail(error && !error->isEmpty() ? *error
+                                                   : QStringLiteral("Word conversion failed"));
+        return cached;
+    }
+
+    if (!tempDir || !tempDir->isValid())
+        return fail(QStringLiteral("Cannot create temp directory"));
+
+    const int index = tempSerial ? (*tempSerial)++ : 0;
+    const QString outputPath = tempDir->filePath(QStringLiteral("part_%1.pdf").arg(index));
+
+    QString convertError;
+    if (isImage(input))
+        convertError = imageToPdf(input, outputPath);
+    else if (isText(input))
+        convertError = textToPdf(input, outputPath);
+    else
+        return fail(QStringLiteral("Unsupported format: %1").arg(input));
+
+    if (!convertError.isEmpty())
+        return fail(convertError);
+    return outputPath;
+}
+
 QString PdfEngine::mergePdfs(const QStringList &inputs, const QString &outputPath,
                              const QStringList &pageRanges)
 {
@@ -460,10 +720,40 @@ QString PdfEngine::rotatePdf(const QString &input, const QString &outputPath, in
     return {};
 }
 
+QString convertOneToPdf(const QString &input, const QString &outputPath)
+{
+    if (QFileInfo(input).suffix().compare(QLatin1String("pdf"), Qt::CaseInsensitive) == 0)
+        return copyPdfToOutput(input, outputPath);
+
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid())
+        return QStringLiteral("Cannot create temp directory");
+
+    const QString partPath = tempDir.filePath(QStringLiteral("part.pdf"));
+
+    QString err;
+    if (isImage(input))
+        err = imageToPdf(input, partPath);
+    else if (isText(input))
+        err = textToPdf(input, partPath);
+    else if (OfficeConverter::isWordDocument(input))
+        err = OfficeConverter::wordToPdf(input, partPath);
+    else
+        return QStringLiteral("Unsupported format: %1").arg(input);
+
+    if (!err.isEmpty())
+        return err;
+
+    return copyPdfToOutput(partPath, outputPath);
+}
+
 QString PdfEngine::convertToPdf(const QStringList &inputs, const QString &outputPath)
 {
     if (inputs.isEmpty())
         return QStringLiteral("No input files");
+
+    if (inputs.size() == 1)
+        return convertOneToPdf(inputs.first(), outputPath);
 
     QTemporaryDir tempDir;
     if (!tempDir.isValid())
@@ -472,7 +762,7 @@ QString PdfEngine::convertToPdf(const QStringList &inputs, const QString &output
     QStringList pdfParts;
 
     for (const QString &path : inputs) {
-        if (QFileInfo(path).suffix().toLower() == QLatin1String("pdf")) {
+        if (QFileInfo(path).suffix().compare(QLatin1String("pdf"), Qt::CaseInsensitive) == 0) {
             pdfParts.append(path);
             continue;
         }
@@ -506,6 +796,24 @@ QString PdfEngine::convertToPdf(const QStringList &inputs, const QString &output
         return QStringLiteral("Cannot overwrite output");
 
     return mergePdfs(pdfParts, outputPath);
+}
+
+QString PdfEngine::convertEachToPdf(const QStringList &inputs, const QString &outputDir)
+{
+    if (inputs.isEmpty())
+        return QStringLiteral("No input files");
+
+    if (!QDir().mkpath(outputDir))
+        return QStringLiteral("Cannot create output directory");
+
+    const QDir dir(outputDir);
+    for (const QString &path : inputs) {
+        const QString outPath = dir.filePath(QFileInfo(path).completeBaseName() + QStringLiteral(".pdf"));
+        const QString err = convertOneToPdf(path, outPath);
+        if (!err.isEmpty())
+            return err;
+    }
+    return {};
 }
 
 QString PdfEngine::convertPdfToWord(const QString &input, const QString &outputPath)

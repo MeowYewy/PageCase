@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(PageCase VERSION 0.2.2 LANGUAGES CXX)
+project(PageCase VERSION 0.2.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -132,6 +132,7 @@ qt_add_qml_module(PageCase
         qml/components/ChangelogDialog.qml
         qml/components/FilePickerDialog.qml
         qml/components/UpdateStatusIcon.qml
+        qml/components/UpdateNewVersionLabel.qml
         qml/pages/PageBase.qml
         qml/pages/SplitPage.qml
         qml/pages/MergePage.qml

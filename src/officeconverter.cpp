@@ -21,30 +21,49 @@ const char kUnavailableError[] =
 const char kWordToPdfScript[] =
     "$ErrorActionPreference='Stop';"
     "$in=$env:PAGECASE_DOC_IN; $out=$env:PAGECASE_DOC_OUT;"
+    "if(-not (Test-Path -LiteralPath $in)){Write-Error 'Input not found'; exit 1}"
+    "$outDir=[System.IO.Path]::GetDirectoryName($out);"
+    "if($outDir -and -not (Test-Path -LiteralPath $outDir)){New-Item -ItemType Directory -Force -Path $outDir|Out-Null}"
     "$word=$null; $doc=$null;"
     "try {"
     "  $word=New-Object -ComObject Word.Application;"
     "  $word.Visible=$false; $word.DisplayAlerts=0;"
-    "  $doc=$word.Documents.Open($in,$false,$true);"
+    "  $doc=$word.Documents.Open($in,$false,$true,$false);"
+    "  if($null -eq $doc){Write-Error 'Word could not open the document'; exit 1}"
     "  $doc.ExportAsFixedFormat($out,17);"
+    "} catch {"
+    "  Write-Error $_.Exception.Message;"
+    "  exit 1;"
     "} finally {"
-    "  if($doc){$doc.Close(0)};"
-    "  if($word){$word.Quit()};"
+    "  $ErrorActionPreference='SilentlyContinue';"
+    "  try{if($doc){$doc.Close(0)}} catch{};"
+    "  try{if($word){$word.Quit()}} catch{};"
     "}";
 
 // Word COM: open the PDF (Word converts it) and save as docx (16 = wdFormatDocumentDefault).
 const char kPdfToWordScript[] =
     "$ErrorActionPreference='Stop';"
     "$in=$env:PAGECASE_DOC_IN; $out=$env:PAGECASE_DOC_OUT;"
+    "if(-not (Test-Path -LiteralPath $in)){Write-Error 'Input not found'; exit 1}"
+    "$outDir=[System.IO.Path]::GetDirectoryName($out);"
+    "if($outDir -and -not (Test-Path -LiteralPath $outDir)){New-Item -ItemType Directory -Force -Path $outDir|Out-Null}"
     "$word=$null; $doc=$null;"
     "try {"
     "  $word=New-Object -ComObject Word.Application;"
     "  $word.Visible=$false; $word.DisplayAlerts=0;"
-    "  $doc=$word.Documents.Open($in,$false,$true);"
+    "  $doc=$word.Documents.Open($in,$false,$true,$false);"
+    "  if($null -eq $doc){"
+    "    $doc=$word.Documents.Open($in);"
+    "  }"
+    "  if($null -eq $doc){Write-Error 'Word could not open this PDF'; exit 1}"
     "  $doc.SaveAs2($out,16);"
+    "} catch {"
+    "  Write-Error $_.Exception.Message;"
+    "  exit 1;"
     "} finally {"
-    "  if($doc){$doc.Close(0)};"
-    "  if($word){$word.Quit()};"
+    "  $ErrorActionPreference='SilentlyContinue';"
+    "  try{if($doc){$doc.Close(0)}} catch{};"
+    "  try{if($word){$word.Quit()}} catch{};"
     "}";
 
 bool comUnavailable(const QString &stderrText)
@@ -53,6 +72,28 @@ bool comUnavailable(const QString &stderrText)
     return stderrText.contains(QStringLiteral("80040154"))
         || (stderrText.contains(QStringLiteral("New-Object"), Qt::CaseInsensitive)
             && stderrText.contains(QStringLiteral("ComObject"), Qt::CaseInsensitive));
+}
+
+bool comRpcFailure(const QString &stderrText)
+{
+    return stderrText.contains(QStringLiteral("800706BA"))
+        || stderrText.contains(QStringLiteral("RPC 服务器不可用"))
+        || stderrText.contains(QStringLiteral("RPC server is unavailable"), Qt::CaseInsensitive);
+}
+
+QString friendlyWordError(const QString &raw)
+{
+    if (comUnavailable(raw))
+        return QString::fromUtf8(kUnavailableError);
+    if (comRpcFailure(raw))
+        return QStringLiteral("Word 无响应，请关闭残留的 Word 进程后重试 / Word is not responding; close any Word processes and retry");
+    if (raw.contains(QStringLiteral("could not open"), Qt::CaseInsensitive)
+        || raw.contains(QStringLiteral("无法打开"), Qt::CaseInsensitive)
+        || raw.contains(QStringLiteral("Null"), Qt::CaseInsensitive)) {
+        return QStringLiteral("Word 无法打开此 PDF（可能已损坏、受密码保护或格式不受支持） / "
+                             "Word could not open this PDF (damaged, password-protected, or unsupported)");
+    }
+    return raw.isEmpty() ? QStringLiteral("Word conversion failed") : raw.left(300);
 }
 
 } // namespace
@@ -80,6 +121,12 @@ bool OfficeConverter::available()
 
 QString OfficeConverter::runWordCom(const QString &script, const QString &input, const QString &output)
 {
+    static QMutex wordComMutex;
+    QMutexLocker locker(&wordComMutex);
+
+    const QString inPath = QFileInfo(input).absoluteFilePath();
+    const QString outPath = QFileInfo(output).absoluteFilePath();
+
     QProcess proc;
     proc.setProgram(QStringLiteral("powershell"));
     proc.setArguments({QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"),
@@ -88,8 +135,8 @@ QString OfficeConverter::runWordCom(const QString &script, const QString &input,
 
     // Paths go through environment variables so quoting can never break.
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.insert(QStringLiteral("PAGECASE_DOC_IN"), QDir::toNativeSeparators(input));
-    env.insert(QStringLiteral("PAGECASE_DOC_OUT"), QDir::toNativeSeparators(output));
+    env.insert(QStringLiteral("PAGECASE_DOC_IN"), QDir::toNativeSeparators(inPath));
+    env.insert(QStringLiteral("PAGECASE_DOC_OUT"), QDir::toNativeSeparators(outPath));
     proc.setProcessEnvironment(env);
 
     proc.start();
@@ -98,13 +145,15 @@ QString OfficeConverter::runWordCom(const QString &script, const QString &input,
         return QStringLiteral("Word conversion timeout");
     }
 
-    if (proc.exitCode() == 0 && QFile::exists(output))
+    if (proc.exitCode() == 0 && QFile::exists(outPath))
+        return {};
+
+    // Conversion may succeed even if Word cleanup fails (RPC 0x800706BA).
+    if (QFile::exists(outPath))
         return {};
 
     const QString err = QString::fromLocal8Bit(proc.readAllStandardError()).trimmed();
-    if (comUnavailable(err))
-        return QString::fromUtf8(kUnavailableError);
-    return err.isEmpty() ? QStringLiteral("Word conversion failed") : err.left(300);
+    return friendlyWordError(err);
 }
 
 QString OfficeConverter::findLibreOffice()
@@ -171,11 +220,14 @@ QString OfficeConverter::pdfToWord(const QString &input, const QString &outputDo
     if (!QFile::exists(input))
         return QStringLiteral("Input not found: %1").arg(input);
 
-    if (QFile::exists(outputDocx) && !QFile::remove(outputDocx))
+    const QString outPath = QFileInfo(outputDocx).absoluteFilePath();
+    QDir().mkpath(QFileInfo(outPath).absolutePath());
+
+    if (QFile::exists(outPath) && !QFile::remove(outPath))
         return QStringLiteral("Cannot overwrite output");
 
     // Only Word does a faithful PDF -> docx reflow; no LibreOffice fallback here.
-    return runWordCom(QString::fromUtf8(kPdfToWordScript), input, outputDocx);
+    return runWordCom(QString::fromUtf8(kPdfToWordScript), input, outPath);
 }
 
 QString OfficeConverter::cachedPdfPath(const QString &input)

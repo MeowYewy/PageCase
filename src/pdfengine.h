@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QStringList>
 
+class QTemporaryDir;
+
 class PdfEngine : public QObject
 {
     Q_OBJECT
@@ -22,6 +24,7 @@ public:
     Q_INVOKABLE QString rotatePdf(const QString &input, const QString &outputPath, int degrees,
                                   const QString &pageRange = {});
     Q_INVOKABLE QString convertToPdf(const QStringList &inputs, const QString &outputPath);
+    Q_INVOKABLE QString convertEachToPdf(const QStringList &inputs, const QString &outputDir);
     Q_INVOKABLE QString convertPdfToWord(const QString &input, const QString &outputPath);
 
     // Normalizes "1, 3-5" style input (full-width chars allowed). Returns an
@@ -35,6 +38,10 @@ public:
     Q_INVOKABLE QString exportPdfAsImages(const QString &input, const QString &outputDir, const QString &format,
                                           const QString &baseNameOverride = {});
     Q_INVOKABLE int pageCount(const QString &inputPath) const;
+
+    // PDF, Word, images, and plain-text/markdown inputs for merge and other PDF ops.
+    QString resolveToPdfPath(const QString &input, QTemporaryDir *tempDir, int *tempSerial,
+                             QString *error) const;
 
 private:
     QString findQpdf() const;
